@@ -8,23 +8,46 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Send } from "lucide-react";
+import { contactSchema } from "@/lib/validations";
 
 const Contact = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ name?: string; email?: string; message?: string }>({});
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+    
+    // Validate form data
+    const result = contactSchema.safeParse({ name, email, message });
+    
+    if (!result.success) {
+      const fieldErrors: { name?: string; email?: string; message?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      toast({
+        title: "Validation Error",
+        description: "Please check the form for errors",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       const { error } = await supabase.from("contacts").insert({
-        name,
-        email,
-        message,
+        name: result.data.name,
+        email: result.data.email,
+        message: result.data.message,
       });
 
       if (error) throw error;
@@ -79,8 +102,10 @@ const Contact = () => {
                     placeholder="Your name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    className={errors.name ? "border-destructive" : ""}
                     required
                   />
+                  {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -91,20 +116,25 @@ const Contact = () => {
                     placeholder="your@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className={errors.email ? "border-destructive" : ""}
                     required
                   />
+                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="message">Message</Label>
                   <Textarea
                     id="message"
-                    placeholder="Your message..."
+                    placeholder="Your message (10-2000 characters)..."
                     rows={6}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
+                    className={errors.message ? "border-destructive" : ""}
                     required
                   />
+                  {errors.message && <p className="text-sm text-destructive">{errors.message}</p>}
+                  <p className="text-xs text-muted-foreground">{message.length}/2000 characters</p>
                 </div>
 
                 <Button type="submit" className="w-full gap-2" disabled={loading}>

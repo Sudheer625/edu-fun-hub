@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { BookOpen } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect } from "react";
+import { signUpSchema, signInSchema } from "@/lib/validations";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string; fullName?: string }>({});
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -28,16 +29,37 @@ const Auth = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
+    // Validate form data
+    const result = signUpSchema.safeParse({ fullName, email, password });
+
+    if (!result.success) {
+      const fieldErrors: { email?: string; password?: string; fullName?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      toast({
+        title: "Validation Error",
+        description: "Please check the form for errors",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       const { error } = await supabase.auth.signUp({
-        email,
-        password,
+        email: result.data.email,
+        password: result.data.password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
-            full_name: fullName,
+            full_name: result.data.fullName,
           },
         },
       });
@@ -61,12 +83,33 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
+    // Validate form data
+    const result = signInSchema.safeParse({ email, password });
+
+    if (!result.success) {
+      const fieldErrors: { email?: string; password?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      toast({
+        title: "Validation Error",
+        description: "Please check the form for errors",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: result.data.email,
+        password: result.data.password,
       });
 
       if (error) throw error;
@@ -116,8 +159,10 @@ const Auth = () => {
                     placeholder="your@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className={errors.email ? "border-destructive" : ""}
                     required
                   />
+                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signin-password">Password</Label>
@@ -127,8 +172,10 @@ const Auth = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className={errors.password ? "border-destructive" : ""}
                     required
                   />
+                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Signing in..." : "Sign In"}
@@ -146,8 +193,10 @@ const Auth = () => {
                     placeholder="John Doe"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                    className={errors.fullName ? "border-destructive" : ""}
                     required
                   />
+                  {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
@@ -157,8 +206,10 @@ const Auth = () => {
                     placeholder="your@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className={errors.email ? "border-destructive" : ""}
                     required
                   />
+                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
@@ -168,9 +219,13 @@ const Auth = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className={errors.password ? "border-destructive" : ""}
                     required
-                    minLength={6}
                   />
+                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                  <p className="text-xs text-muted-foreground">
+                    Must be 8+ characters with uppercase, lowercase, and number
+                  </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating account..." : "Sign Up"}

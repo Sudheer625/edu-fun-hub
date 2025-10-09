@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { BookOpen, Video, Upload, Trash2, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { subjectSchema, pdfSchema, videoSchema } from "@/lib/validations";
 
 interface Subject {
   id: string;
@@ -38,6 +39,7 @@ const Admin = () => {
   // Subject form
   const [subjectName, setSubjectName] = useState("");
   const [subjectDesc, setSubjectDesc] = useState("");
+  const [subjectErrors, setSubjectErrors] = useState<{ name?: string; description?: string }>({});
 
   // PDF form
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -45,6 +47,7 @@ const Admin = () => {
   const [pdfDesc, setPdfDesc] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pdfErrors, setPdfErrors] = useState<{ title?: string; description?: string; subjectId?: string; file?: string }>({});
 
   // Video form
   const [videoSubject, setVideoSubject] = useState("");
@@ -52,6 +55,7 @@ const Admin = () => {
   const [videoDesc, setVideoDesc] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [addingVideo, setAddingVideo] = useState(false);
+  const [videoErrors, setVideoErrors] = useState<{ title?: string; description?: string; subjectId?: string; youtubeUrl?: string }>({});
 
   useEffect(() => {
     if (!isAdmin) {
@@ -79,9 +83,25 @@ const Admin = () => {
 
   const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubjectErrors({});
+
+    const result = subjectSchema.safeParse({ name: subjectName, description: subjectDesc });
+
+    if (!result.success) {
+      const fieldErrors: { name?: string; description?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+        }
+      });
+      setSubjectErrors(fieldErrors);
+      toast({ title: "Validation Error", description: "Please check the form for errors", variant: "destructive" });
+      return;
+    }
+
     const { error } = await supabase.from("subjects").insert({
-      name: subjectName,
-      description: subjectDesc,
+      name: result.data.name,
+      description: result.data.description,
     });
 
     if (error) {
@@ -96,7 +116,34 @@ const Admin = () => {
 
   const handleUploadPDF = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pdfFile || !user) return;
+    if (!user) return;
+    
+    setPdfErrors({});
+
+    if (!pdfFile) {
+      setPdfErrors({ file: "Please select a PDF file" });
+      toast({ title: "Validation Error", description: "Please select a PDF file", variant: "destructive" });
+      return;
+    }
+
+    const result = pdfSchema.safeParse({
+      title: pdfTitle,
+      description: pdfDesc,
+      subjectId: selectedSubject,
+      file: pdfFile,
+    });
+
+    if (!result.success) {
+      const fieldErrors: { title?: string; description?: string; subjectId?: string; file?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+        }
+      });
+      setPdfErrors(fieldErrors);
+      toast({ title: "Validation Error", description: "Please check the form for errors", variant: "destructive" });
+      return;
+    }
 
     setUploading(true);
     try {
@@ -115,9 +162,9 @@ const Admin = () => {
         .getPublicUrl(filePath);
 
       const { error: dbError } = await supabase.from("pdfs").insert({
-        subject_id: selectedSubject,
-        title: pdfTitle,
-        description: pdfDesc,
+        subject_id: result.data.subjectId,
+        title: result.data.title,
+        description: result.data.description,
         file_url: publicUrl,
         file_size: pdfFile.size,
         uploaded_by: user.id,
@@ -141,18 +188,39 @@ const Admin = () => {
     e.preventDefault();
     if (!user) return;
 
+    setVideoErrors({});
+
+    const result = videoSchema.safeParse({
+      title: videoTitle,
+      description: videoDesc,
+      subjectId: videoSubject,
+      youtubeUrl,
+    });
+
+    if (!result.success) {
+      const fieldErrors: { title?: string; description?: string; subjectId?: string; youtubeUrl?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+        }
+      });
+      setVideoErrors(fieldErrors);
+      toast({ title: "Validation Error", description: "Please check the form for errors", variant: "destructive" });
+      return;
+    }
+
     setAddingVideo(true);
     try {
-      const videoId = extractYouTubeVideoId(youtubeUrl);
+      const videoId = extractYouTubeVideoId(result.data.youtubeUrl);
       if (!videoId) {
         throw new Error("Invalid YouTube URL");
       }
 
       const { error } = await supabase.from("youtube_videos").insert({
-        subject_id: videoSubject,
-        title: videoTitle,
-        description: videoDesc,
-        youtube_url: youtubeUrl,
+        subject_id: result.data.subjectId,
+        title: result.data.title,
+        description: result.data.description,
+        youtube_url: result.data.youtubeUrl,
         video_id: videoId,
         added_by: user.id,
       });
@@ -213,16 +281,20 @@ const Admin = () => {
                       id="subject-name"
                       value={subjectName}
                       onChange={(e) => setSubjectName(e.target.value)}
+                      className={subjectErrors.name ? "border-destructive" : ""}
                       required
                     />
+                    {subjectErrors.name && <p className="text-sm text-destructive">{subjectErrors.name}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="subject-desc">Description</Label>
+                    <Label htmlFor="subject-desc">Description (optional)</Label>
                     <Textarea
                       id="subject-desc"
                       value={subjectDesc}
                       onChange={(e) => setSubjectDesc(e.target.value)}
+                      className={subjectErrors.description ? "border-destructive" : ""}
                     />
+                    {subjectErrors.description && <p className="text-sm text-destructive">{subjectErrors.description}</p>}
                   </div>
                   <Button type="submit">Add Subject</Button>
                 </form>
@@ -244,7 +316,7 @@ const Admin = () => {
                   <div className="space-y-2">
                     <Label htmlFor="pdf-subject">Subject</Label>
                     <Select value={selectedSubject} onValueChange={setSelectedSubject} required>
-                      <SelectTrigger>
+                      <SelectTrigger className={pdfErrors.subjectId ? "border-destructive" : ""}>
                         <SelectValue placeholder="Select subject" />
                       </SelectTrigger>
                       <SelectContent>
@@ -255,6 +327,7 @@ const Admin = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {pdfErrors.subjectId && <p className="text-sm text-destructive">{pdfErrors.subjectId}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="pdf-title">PDF Title</Label>
@@ -262,26 +335,32 @@ const Admin = () => {
                       id="pdf-title"
                       value={pdfTitle}
                       onChange={(e) => setPdfTitle(e.target.value)}
+                      className={pdfErrors.title ? "border-destructive" : ""}
                       required
                     />
+                    {pdfErrors.title && <p className="text-sm text-destructive">{pdfErrors.title}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="pdf-desc">Description</Label>
+                    <Label htmlFor="pdf-desc">Description (optional)</Label>
                     <Textarea
                       id="pdf-desc"
                       value={pdfDesc}
                       onChange={(e) => setPdfDesc(e.target.value)}
+                      className={pdfErrors.description ? "border-destructive" : ""}
                     />
+                    {pdfErrors.description && <p className="text-sm text-destructive">{pdfErrors.description}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="pdf-file">PDF File</Label>
+                    <Label htmlFor="pdf-file">PDF File (Max 50MB)</Label>
                     <Input
                       id="pdf-file"
                       type="file"
                       accept=".pdf"
                       onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                      className={pdfErrors.file ? "border-destructive" : ""}
                       required
                     />
+                    {pdfErrors.file && <p className="text-sm text-destructive">{pdfErrors.file}</p>}
                   </div>
                   <Button type="submit" disabled={uploading}>
                     {uploading ? "Uploading..." : "Upload PDF"}
@@ -305,7 +384,7 @@ const Admin = () => {
                   <div className="space-y-2">
                     <Label htmlFor="video-subject">Subject</Label>
                     <Select value={videoSubject} onValueChange={setVideoSubject} required>
-                      <SelectTrigger>
+                      <SelectTrigger className={videoErrors.subjectId ? "border-destructive" : ""}>
                         <SelectValue placeholder="Select subject" />
                       </SelectTrigger>
                       <SelectContent>
@@ -316,6 +395,7 @@ const Admin = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {videoErrors.subjectId && <p className="text-sm text-destructive">{videoErrors.subjectId}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="video-title">Video Title</Label>
@@ -323,16 +403,20 @@ const Admin = () => {
                       id="video-title"
                       value={videoTitle}
                       onChange={(e) => setVideoTitle(e.target.value)}
+                      className={videoErrors.title ? "border-destructive" : ""}
                       required
                     />
+                    {videoErrors.title && <p className="text-sm text-destructive">{videoErrors.title}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="video-desc">Description</Label>
+                    <Label htmlFor="video-desc">Description (optional)</Label>
                     <Textarea
                       id="video-desc"
                       value={videoDesc}
                       onChange={(e) => setVideoDesc(e.target.value)}
+                      className={videoErrors.description ? "border-destructive" : ""}
                     />
+                    {videoErrors.description && <p className="text-sm text-destructive">{videoErrors.description}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="youtube-url">YouTube URL</Label>
@@ -341,8 +425,10 @@ const Admin = () => {
                       placeholder="https://www.youtube.com/watch?v=..."
                       value={youtubeUrl}
                       onChange={(e) => setYoutubeUrl(e.target.value)}
+                      className={videoErrors.youtubeUrl ? "border-destructive" : ""}
                       required
                     />
+                    {videoErrors.youtubeUrl && <p className="text-sm text-destructive">{videoErrors.youtubeUrl}</p>}
                   </div>
                   <Button type="submit" disabled={addingVideo}>
                     {addingVideo ? "Adding..." : "Add Video"}
