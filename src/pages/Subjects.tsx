@@ -60,7 +60,7 @@ const Subjects = () => {
 
   const fetchPDFs = async (subjectId: string) => {
     const { data, error } = await supabase
-      .from("pdfs")
+      .from("pdfs_public")
       .select("*")
       .eq("subject_id", subjectId)
       .order("created_at", { ascending: false });
