@@ -194,7 +194,44 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      pdfs_public: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          file_size: number | null
+          file_url: string | null
+          id: string | null
+          subject_id: string | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          id?: string | null
+          subject_id?: string | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          id?: string | null
+          subject_id?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdfs_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
