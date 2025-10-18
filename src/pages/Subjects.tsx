@@ -185,6 +185,14 @@ const Subjects = () => {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="border-t py-8 mt-16">
+        <div className="container mx-auto px-4 text-center text-muted-foreground">
+          <p>&copy; 2025 Edu Fun. All rights reserved.</p>
+          <p className="mt-2">Copyrights Reserved to Singidi Sai Naga Sudheer</p>
+        </div>
+      </footer>
     </div>
   );
 };
